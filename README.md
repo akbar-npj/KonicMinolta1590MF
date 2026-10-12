@@ -18,20 +18,62 @@ By analyzing the Windows driver INF files (`KBPRMB0A.INF`, `kbimm10a.inf`, `twpp
 
 ---
 
-## 2. IPP (Internet Printing Protocol) Support Analysis
+## 2. IPP (Internet Printing Protocol) Support & Network Printing
 
-### Does the Printer Hardware Support IPP Natively?
-> [!IMPORTANT]
-> **No.** The physical Konica Minolta pagepro 1590MF hardware does **not** feature an embedded IPP server, IPP Everywhere, AirPrint, or Mopria certification. Its network interface only supports raw AppSocket (Port 9100) and LPD/LPR (Port 515).
+### Understanding "IPP Option 1" in the Printer's Settings
+If your Konica Minolta pagepro 1590MF / bizhub 16 is connected via Ethernet, you may see an **"IPP"** option (such as **"IPP Option 1"**, `IPP Port: 631`, or URL `http://<printer_ip>:631/ipp/port1`) in the printer's Web Management interface or network configuration printout.
 
-### How to Enable Full IPP / AirPrint with this Open Source Driver
-When you install this driver on a Linux machine (or a Raspberry Pi print server) connected to the printer via USB or Ethernet LPR, **CUPS automatically exposes the printer over IPP and AirPrint**:
+Here is the exact technical explanation of how IPP works on this hardware:
+
+#### 1. Transport-Layer IPP (Supported by the Hardware)
+The physical printer's embedded network card (Brother NC print server architecture) **does support IPP transport** (RFC 2910 / RFC 2911 over HTTP on TCP Port 631).
+- The network queue endpoint is: `ipp://<PRINTER_IP>/ipp/port1` (or `http://<PRINTER_IP>:631/ipp/port1`).
+- You **can** configure CUPS on Linux to communicate with the physical printer directly over IPP using this URI!
+
+#### 2. Driverless IPP / IPP Everywhere / AirPrint (NOT Supported by the Hardware Alone)
+The critical difference is between **Transport** (how bytes travel) and **Page Description Language / PDL** (what the bytes mean):
+- **Modern "Driverless" IPP (IPP Everywhere, Apple AirPrint, Mopria)**: The printer hardware contains an onboard rasterizer (RIP) that natively parses PDF (`application/pdf`) or PWG-Raster (`image/pwg-raster`) sent directly by smartphones and computers without any manufacturer driver.
+- **Konica Minolta pagepro 1590MF Hardware**: The hardware is a **host-based GDI laser engine** with 32 MB RAM and no onboard PDF/PWG rasterizer. When it accepts an IPP job, the document payload inside the IPP envelope **must still be pre-rendered into Brother 1030 raster compression (`\x1b*b1030m`) wrapped in PJL**.
+- If a phone or PC attempts to print driverless PDF/PWG directly to the printer's IP address, the printer rejects the job or outputs dozens of blank or corrupted pages.
+
+---
+
+### How to Print Over the Network with this Driver
+
+With this open-source driver installed, you can connect CUPS to a networked pagepro 1590MF using any of these three network protocols:
+
+#### Option A: Native IPP Network Transport (`ipp://`)
+```bash
+sudo lpadmin -p KM_pagepro_1590MF -E \
+  -v "ipp://<PRINTER_IP>/ipp/port1" \
+  -P /usr/share/cups/model/km/km-pagepro1590mf.ppd
+```
+*CUPS converts the print job using `rastertokm1590mf` to Brother 1030 raster and delivers it over Port 631 directly to the printer's IPP Option 1 endpoint.*
+
+#### Option B: RAW AppSocket / JetDirect (`socket://`)
+```bash
+sudo lpadmin -p KM_pagepro_1590MF -E \
+  -v "socket://<PRINTER_IP>:9100" \
+  -P /usr/share/cups/model/km/km-pagepro1590mf.ppd
+```
+
+#### Option C: LPD / LPR Queue (`lpd://`)
+```bash
+sudo lpadmin -p KM_pagepro_1590MF -E \
+  -v "lpd://<PRINTER_IP>/binary_p1" \
+  -P /usr/share/cups/model/km/km-pagepro1590mf.ppd
+```
+
+---
+
+### Enabling Full Wireless AirPrint / Mopria for Mobile Devices
+Once the printer is installed in CUPS (via USB, IPP, or AppSocket), CUPS acts as an **AirPrint / IPP Everywhere Gateway**:
 ```bash
 # Enable IPP network sharing in CUPS
 sudo cupsctl --share-printers --remote-any
 sudo lpadmin -p KM_pagepro_1590MF -o printer-is-shared=true
 ```
-Once enabled, any device on your local network—including **iPhones (AirPrint), Android devices (Mopria), macOS, Windows, and Linux laptops**—can print to the pagepro 1590MF seamlessly over IPP without needing any vendor drivers!
+Now, any **iPhone (AirPrint), iPad, Android device (Mopria), macOS, or Linux/Windows PC** on your Wi-Fi network can discover and print to the pagepro 1590MF completely driverless! CUPS accepts the standard PDF/raster stream from the mobile device, renders it via `rastertokm1590mf`, and transmits it to the printer.
 
 ---
 

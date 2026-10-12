@@ -54,20 +54,52 @@ Inside `bizhub15_16_pp1580MF_1590MF_Win/64`:
 
 ---
 
-## 3. IPP (Internet Printing Protocol) Analysis
+## 3. IPP (Internet Printing Protocol) & Network Architecture Analysis
 
-A key question was whether the pagepro 1590MF supports IPP natively:
-- **Direct Hardware Verification**: Inspection of the network configuration files (`brosnmp.dll`, `brtcpcon.dll`) and device specifications confirms that the machine is a host-based GDI/raster printer. The network interface card only listens on:
-  - **Port 515 (LPD/LPR)**
-  - **Port 9100 (RAW AppSocket / JetDirect)**
-- The hardware firmware **does not contain an embedded IPP / AirPrint server**.
-- **The Solution via CUPS**:
-  On Linux, CUPS itself functions as a standards-compliant IPP Everywhere and Apple AirPrint server. Once our native open-source driver is installed:
-  ```bash
-  sudo cupsctl --share-printers --remote-any
-  sudo lpadmin -p KM_pagepro_1590MF -o printer-is-shared=true
-  ```
-  CUPS accepts incoming IPP jobs from any network client (iOS, Android, macOS, Windows) and renders them through `rastertokm1590mf`, achieving 100% wireless IPP functionality.
+A frequent question is whether the pagepro 1590MF hardware supports IPP natively and why users see an **"IPP Option 1"** in the printer's settings:
+
+### 3.1 Network Hardware Architecture
+Networked models (pagepro 1590MF and bizhub 16) feature an internal 10/100Base-TX print server based on the **Brother NC-6800h / NC-7000 series embedded network controller**. Inspection of network stack binaries (`brosnmp.dll`, `brtcpcon.dll`, `brtwdsui.dll`) and protocol dumps reveals the following active network daemon ports:
+- **TCP Port 631 (IPP / HTTP)**: Default queue URI `/ipp/port1` (or `/ipp`).
+- **TCP Port 9100 (RAW AppSocket / JetDirect)**: Direct bi-directional byte stream to the print engine.
+- **TCP Port 515 (LPD / LPR)**: RFC 1179 spooler service with queue names `binary_p1`, `text_p1`, and `raw`.
+- **UDP Port 161 (SNMP v1/v2c)**: Device state, page counts, and toner level telemetry via Brother private MIBs (`.1.3.6.1.4.1.2435...`).
+- **TCP Port 80 (Embedded HTTP Server)**: Web-based administration for network and print server settings.
+
+### 3.2 The "IPP Option 1" Explanation: Transport vs. PDL
+The device setting **"IPP Option 1"** directly references the physical printer channel mapped to the IPP queue path `/ipp/port1`.
+
+Crucially, **IPP operates at two distinct architectural levels**:
+1. **Network Transport Layer (RFC 2910 / RFC 2911)**:
+   - The printer's firmware **does implement** a compliant IPP 1.0/1.1 HTTP server on Port 631.
+   - It handles IPP operations: `0x0002 (Print-Job)`, `0x0004 (Validate-Job)`, `0x000B (Get-Printer-Attributes)`.
+   - Thus, the printer **supports IPP as a transport protocol**.
+2. **Page Description Language (PDL) / Rasterizer Layer**:
+   - Modern "Driverless" IPP (IPP Everywhere, Apple AirPrint, Mopria) relies on the printer having an onboard PostScript, PDF, or PWG-Raster (`image/pwg-raster`) hardware interpreter (RIP).
+   - The pagepro 1590MF is a **host-based GDI machine** with only 32 MB of onboard RAM. The print server firmware simply passes the incoming payload directly to the laser engine ASIC.
+   - Therefore, the payload enclosed inside the IPP envelope **must already be pre-rasterized by the host into Brother 1030 compressed raster (`\x1b*b1030m`) preceded by PJL**.
+   - If an unconfigured smartphone sends standard PDF/PWG directly to `ipp://<PRINTER_IP>/ipp/port1`, the printer cannot decode it and prints raw postscript/PDF binary text or errors out.
+
+### 3.3 Printing Over IPP with the Open-Source Driver
+Because CUPS natively supports `ipp://` as an output backend, you can connect CUPS directly to the physical printer over its native IPP transport:
+```bash
+sudo lpadmin -p KM_pagepro_1590MF -E \
+  -v "ipp://<PRINTER_IP>/ipp/port1" \
+  -P /usr/share/cups/model/km/km-pagepro1590mf.ppd
+```
+When a job is submitted:
+1. CUPS converts the application document into CUPS raster.
+2. `rastertokm1590mf` encodes the raster into PJL + Brother 1030 run-length/delta compressed chunks (`%dw\0...`).
+3. CUPS packages this 1030 raster payload into a standard IPP `Print-Job` HTTP request and delivers it to Port 631 on the printer.
+4. The printer's IPP engine unpacks the payload and prints the page flawlessly.
+
+### 3.4 CUPS as an AirPrint / IPP Everywhere Gateway
+To enable true driverless printing from iPhones, iPads, Android phones, and laptops across the local network:
+```bash
+sudo cupsctl --share-printers --remote-any
+sudo lpadmin -p KM_pagepro_1590MF -o printer-is-shared=true
+```
+The Linux machine running CUPS advertises the printer via mDNS / DNS-SD (Avahi / Bonjour) as a full IPP Everywhere device. Clients print driverless PDF to CUPS, and CUPS transparently handles the rasterization.
 
 ---
 

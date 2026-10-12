@@ -101,8 +101,15 @@ if command -v lpinfo >/dev/null 2>&1; then
         $SUDO lpadmin -p "KM_pagepro_1590MF" -E -v "$DEVICE_URI" -P "$PPD_FILE"
         echo "Successfully added printer 'KM_pagepro_1590MF' to CUPS!"
     else
-        echo "No printer currently connected via USB. Once plugged in, add it with:"
-        echo "  sudo lpadmin -p KM_pagepro_1590MF -E -v usb://dev/usb/lp0 -P /usr/share/cups/model/km/km-pagepro1590mf.ppd"
+        echo "No printer currently connected via USB. To add a printer manually:"
+        echo "  - USB Connection:"
+        echo "      sudo lpadmin -p KM_pagepro_1590MF -E -v usb://dev/usb/lp0 -P /usr/share/cups/model/km/km-pagepro1590mf.ppd"
+        echo "  - Network IPP (IPP Option 1 / Port 631):"
+        echo "      sudo lpadmin -p KM_pagepro_1590MF -E -v ipp://<PRINTER_IP>/ipp/port1 -P /usr/share/cups/model/km/km-pagepro1590mf.ppd"
+        echo "  - Network RAW Port 9100:"
+        echo "      sudo lpadmin -p KM_pagepro_1590MF -E -v socket://<PRINTER_IP>:9100 -P /usr/share/cups/model/km/km-pagepro1590mf.ppd"
+        echo "  - Network LPD/LPR:"
+        echo "      sudo lpadmin -p KM_pagepro_1590MF -E -v lpd://<PRINTER_IP>/binary_p1 -P /usr/share/cups/model/km/km-pagepro1590mf.ppd"
     fi
 fi
 
