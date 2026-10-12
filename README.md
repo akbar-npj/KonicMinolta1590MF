@@ -122,7 +122,7 @@ For deep technical documentation on how the protocols were reverse-engineered us
 
 ---
 
-## 6. Usage
+## 7. Usage
 
 ### Printing
 Print using standard Linux commands:
@@ -159,7 +159,7 @@ km1590-scan --list-devices
 
 ---
 
-## 7. Testing & Verification
+## 8. Testing & Verification
 
 Run the included unit test suites:
 ```bash
@@ -175,6 +175,6 @@ python3 km1590mf-driver/tests/test_scanner_protocol.py
 
 ---
 
-## 8. License
+## 9. License
 
 This open source driver suite is released under the **GNU General Public License v2 (GPL-2.0)**.
