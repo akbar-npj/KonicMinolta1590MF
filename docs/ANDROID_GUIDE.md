@@ -151,28 +151,119 @@ Using Android's `UsbManager`:
 
 ---
 
-## 4. Option 3: Running inside Termux on Android
+## 4. Option 3: Running inside Termux & Integrating Android Apps
 
-Android is built on top of the Linux kernel, and the C++ raster filter is 100% standard C++11 with no GUI dependencies. You can run it inside **Termux** (terminal emulator for Android):
+Because Termux runs in userspace on Android, users often ask:
+> *"How do standard Android apps (like Chrome, WhatsApp, Gmail, Adobe Reader) actually send documents to Termux to print?"*
 
-1. Install **Termux** from F-Droid.
-2. Open Termux and install the compilation toolchain:
+Here are the **three seamless integration methods** to connect regular Android apps to Termux:
+
+---
+
+### Workflow A: The Android "Share Sheet" Hook (Recommended & Easiest)
+Android allows any app to "Share" files to Termux. Termux has a built-in handler (`~/bin/termux-file-editor`) that runs automatically when a file is shared with it!
+
+#### 1. Setup in Termux (one-time setup):
+```bash
+# Update and install tools in Termux
+pkg update
+pkg install python python-pillow poppler git
+git clone https://github.com/akbar-npj/KonicMinolta1590MF.git ~/KonicMinolta1590MF
+
+# Create the Termux Share hook
+mkdir -p ~/bin
+cat << 'EOF' > ~/bin/termux-file-editor
+#!/data/data/com.termux/files/usr/bin/bash
+# Set your printer's IP address (or leave empty if using USB OTG)
+PRINTER_IP="192.168.1.50"
+SHARED_FILE="$1"
+
+echo "=== Konica Minolta 1590MF Print ==="
+echo "Document: $SHARED_FILE"
+python3 ~/KonicMinolta1590MF/printer/km1590_print.py --host "$PRINTER_IP" "$SHARED_FILE"
+
+# Optional: show Android pop-up notification if termux-api is installed
+command -v termux-toast >/dev/null && termux-toast "Document printed successfully!"
+EOF
+chmod +x ~/bin/termux-file-editor
+```
+
+#### 2. How you print from ANY Android app:
+1. Open any PDF, photo, or document in **Chrome, WhatsApp, Gmail, Google Drive, or Gallery**.
+2. Tap the Android **Share** button (or 3-dots menu → Share).
+3. Tap **Termux** in the share dialog.
+4. Termux immediately executes `km1590_print.py` in the background and sends the document straight to your printer over Wi-Fi! No command typing needed.
+
+---
+
+### Workflow B: Android System "Print" Button (via Local CUPS Daemon)
+If you prefer using the official Android **Print** menu option instead of the Share sheet:
+
+1. **Install and start CUPS inside Termux**:
    ```bash
-   pkg update
-   pkg install clang make python git libusb
+   pkg install cups
+   cupsd
    ```
-3. Clone this repository:
+2. **Add the Konica Minolta printer to the local CUPS queue**:
    ```bash
-   git clone https://github.com/akbar-npj/KonicMinolta1590MF.git
-   cd KonicMinolta1590MF
+   lpadmin -p KM_pagepro_1590MF -E \
+     -v "ipp://192.168.1.50/ipp/port1" \
+     -P ~/KonicMinolta1590MF/printer/ppd/km-pagepro1590mf.ppd
    ```
-4. Build the C++ tests and tools:
+3. **Register Termux CUPS with Android**:
+   * On your phone, go to **Settings** → **Printing** → **Default Print Service** → **Add printer**.
+   * Enter IP address: `127.0.0.1` (or your phone's Wi-Fi IP address).
+   * Android will connect to the local CUPS server running inside Termux!
+4. Whenever you tap **Print** from any app, Android submits the print job directly to the Termux CUPS instance on loopback.
+
+---
+
+### Workflow C: Hot-Folder Auto-Print (Background Watcher)
+You can set up an automatic folder watcher so any file saved into a specific directory is immediately printed:
+
+1. Grant Termux storage access:
    ```bash
-   cd tests
-   clang++ -std=c++11 -O2 -I../printer/src test_raster_encoder.cc ../printer/src/line.cc -o test_raster
-   ./test_raster
+   termux-setup-storage
+   mkdir -p ~/storage/shared/Download/Print
    ```
-   *Result: `ALL PRINTER ENCODER TESTS PASSED!` on Android ARM64!*
+2. Run a background watcher script in Termux:
+   ```bash
+   cat << 'EOF' > ~/watch_print.sh
+   #!/data/data/com.termux/files/usr/bin/bash
+   PRINTER_IP="192.168.1.50"
+   WATCH_DIR="$HOME/storage/shared/Download/Print"
+   mkdir -p "$WATCH_DIR/Done"
+
+   echo "Watching $WATCH_DIR for files to print..."
+   while true; do
+       for f in "$WATCH_DIR"/*.*; do
+           if [ -f "$f" ]; then
+               echo "Printing $f..."
+               python3 ~/KonicMinolta1590MF/printer/km1590_print.py --host "$PRINTER_IP" "$f"
+               mv "$f" "$WATCH_DIR/Done/"
+           fi
+       done
+       sleep 3
+   done
+   EOF
+   chmod +x ~/watch_print.sh
+   ```
+3. Whenever you download a ticket, invoice, or PDF into the `Download/Print` folder, it prints automatically!
+
+---
+
+### Using `km1590_print.py` via Command Line in Termux
+You can also run the standalone print CLI directly:
+```bash
+# Print a PDF over Wi-Fi
+python3 printer/km1590_print.py --host 192.168.1.50 document.pdf
+
+# Print with duplex and toner save
+python3 printer/km1590_print.py --host 192.168.1.50 --duplex --economode report.pdf
+
+# Print via USB OTG cable directly plugged into your Android phone
+python3 printer/km1590_print.py --usb document.pdf
+```
 
 ---
 
