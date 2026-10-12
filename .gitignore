@@ -1,0 +1,31 @@
+# Temporary analysis / extracted files
+extracted/
+km1590mf-driver/
+
+# Vendor proprietary driver packages (archive)
+Printer Driver_1590MF_Linux/
+bizhub15_16_pp1580MF_1590MF_Win/
+
+# Build artifacts
+*.o
+printer/rastertokm1590mf
+tests/test_raster_encoder
+test_raster
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Output scan test files
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.tiff
+
+# OS and Editor metadata
+.DS_Store
+*.swp
+*.swo
+*~

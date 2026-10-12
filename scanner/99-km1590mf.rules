@@ -1,0 +1,20 @@
+# udev rules for Konica Minolta pagepro 1590MF / 1580MF / bizhub 15 / bizhub 16
+# Allows non-root users (group 'scanner' or 'lp') to access printer and scanner interfaces
+
+ACTION!="add", GOTO="km1590mf_rules_end"
+SUBSYSTEM!="usb", GOTO="km1590mf_rules_end"
+ENV{DEVTYPE}!="usb_device", GOTO="km1590mf_rules_end"
+
+# Konica Minolta pagepro 1590MF
+ATTRS{idVendor}=="132b", ATTRS{idProduct}=="20ea", MODE="0666", GROUP="lp", ENV{libsane_matched}="yes"
+
+# Konica Minolta pagepro 1580MF
+ATTRS{idVendor}=="132b", ATTRS{idProduct}=="20ec", MODE="0666", GROUP="lp", ENV{libsane_matched}="yes"
+
+# Konica Minolta bizhub 16
+ATTRS{idVendor}=="132b", ATTRS{idProduct}=="20eb", MODE="0666", GROUP="lp", ENV{libsane_matched}="yes"
+
+# Konica Minolta bizhub 15
+ATTRS{idVendor}=="132b", ATTRS{idProduct}=="20ed", MODE="0666", GROUP="lp", ENV{libsane_matched}="yes"
+
+LABEL="km1590mf_rules_end"
