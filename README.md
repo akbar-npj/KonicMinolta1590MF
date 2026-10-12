@@ -199,24 +199,34 @@ km1590-scan --mode lineart --resolution 150 -o quick_text.pdf
 km1590-scan --list-devices
 ```
 
+## 8. Android Integration
+
+With the reverse-engineered source code in this repository, you can print and scan from Android devices in several ways:
+1. **Zero-Install (Local Wi-Fi Network)**: Once installed on a Linux PC or Raspberry Pi with CUPS sharing enabled (`cupsctl --share-printers`), all modern Android devices running the built-in **Default Print Service (Mopria)** discover the printer automatically over Wi-Fi! No apps needed on the phone.
+2. **Native Android App (APK / NDK)**: Build a custom `android.printservice.PrintService` plugin by compiling our C++ Brother 1030 compression engine (`line.cc`, `job.cc`) with the **Android NDK** to print over Wi-Fi (Port 9100) or USB OTG.
+3. **Termux on Android**: Run our C++ and Python tools natively inside Termux on Android ARM64.
+
+👉 For detailed architecture, Android Studio NDK integration, and USB OTG code examples, see:
+**[Android Integration Guide (docs/ANDROID_GUIDE.md)](docs/ANDROID_GUIDE.md)**
+
 ---
 
-## 8. Testing & Verification
+## 9. Testing & Verification
 
 Run the included unit test suites:
 ```bash
 # Test printer raster compression and block framing
-g++ -std=c++11 -O2 -Ikm1590mf-driver/printer/src \
-    km1590mf-driver/tests/test_raster_encoder.cc \
-    km1590mf-driver/printer/src/line.cc -o test_raster
+g++ -std=c++11 -O2 -Iprinter/src \
+    tests/test_raster_encoder.cc \
+    printer/src/line.cc -o test_raster
 ./test_raster
 
 # Test scanner protocol framing and PackBits decompression
-python3 km1590mf-driver/tests/test_scanner_protocol.py
+python3 tests/test_scanner_protocol.py
 ```
 
 ---
 
-## 9. License
+## 10. License
 
 This open source driver suite is released under the **GNU General Public License v2 (GPL-2.0)**.
